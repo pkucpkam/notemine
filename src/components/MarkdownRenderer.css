@@ -1,0 +1,270 @@
+/* ============================================
+   NoteMine — Markdown Body Styles
+   Notion-inspired document typography
+   ============================================ */
+
+.markdown-body {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-xxl) var(--space-xxl) 80px;
+  color: var(--color-ink);
+  font-family: var(--font-family);
+}
+
+/* ── Headings ── */
+.md-h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.1;
+  letter-spacing: -1px;
+  color: var(--color-ink);
+  margin: 2em 0 0.5em;
+  padding-bottom: 0.25em;
+}
+
+.md-h1:first-child {
+  margin-top: 0;
+  font-size: 40px;
+}
+
+.md-h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.23;
+  letter-spacing: -0.625px;
+  color: var(--color-ink);
+  margin: 1.75em 0 0.5em;
+}
+
+.md-h3 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-snug);
+  letter-spacing: -0.25px;
+  color: var(--color-ink);
+  margin: 1.5em 0 0.4em;
+}
+
+.md-h4 {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-normal);
+  color: var(--color-ink-secondary);
+  margin: 1.25em 0 0.35em;
+}
+
+/* ── Paragraph ── */
+.md-p {
+  font-size: var(--font-size-body-md);
+  line-height: 1.65;
+  color: var(--color-ink-secondary);
+  margin: 0 0 1em;
+}
+
+/* ── Links ── */
+.md-link {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 117, 222, 0.3);
+  text-underline-offset: 2px;
+  transition: text-decoration-color var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.md-link:hover {
+  text-decoration-color: var(--color-primary);
+}
+
+.md-link-icon {
+  display: inline;
+  opacity: 0.6;
+  vertical-align: middle;
+}
+
+/* ── Inline code ── */
+.md-code-inline {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.875em;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-accent-orange);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-hairline);
+}
+
+/* ── Code block ── */
+.md-pre {
+  background: #f8f8f7;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md) var(--space-lg);
+  overflow-x: auto;
+  margin: var(--space-md) 0;
+  font-size: 0.875em;
+  line-height: 1.6;
+}
+
+.md-pre code {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* Override highlight.js to match Notion's style */
+.hljs {
+  background: transparent !important;
+}
+
+/* ── Blockquote ── */
+.md-blockquote {
+  border-left: 3px solid var(--color-primary);
+  margin: var(--space-md) 0;
+  padding: var(--space-xs) var(--space-md);
+  background: rgba(0, 117, 222, 0.04);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--color-ink-muted);
+  font-style: italic;
+}
+
+.md-blockquote p {
+  margin: 0;
+}
+
+/* ── Lists ── */
+.md-ul, .md-ol {
+  padding-left: var(--space-lg);
+  margin: 0 0 var(--space-md);
+}
+
+.md-li {
+  font-size: var(--font-size-body-md);
+  line-height: 1.65;
+  color: var(--color-ink-secondary);
+  margin-bottom: 4px;
+}
+
+/* Task list */
+.md-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  list-style: none;
+  margin-left: -var(--space-md);
+}
+
+.md-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-ink-faint);
+  border-radius: var(--radius-xs);
+  margin-top: 4px;
+  position: relative;
+  background: var(--color-surface);
+}
+
+.md-checkbox.checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.md-checkbox.checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid white;
+  border-bottom: 2px solid white;
+  transform: rotate(-45deg);
+}
+
+/* ── Table ── */
+.md-table-wrap {
+  overflow-x: auto;
+  margin: var(--space-md) 0;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body-sm);
+}
+
+.md-thead {
+  background: var(--color-canvas-soft);
+}
+
+.md-th {
+  padding: var(--space-xs) var(--space-sm);
+  text-align: left;
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.125px;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.md-td {
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--color-ink-secondary);
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+.md-tr:last-child .md-td {
+  border-bottom: none;
+}
+
+.md-tr:hover .md-td {
+  background: var(--color-canvas-soft);
+}
+
+/* ── HR ── */
+.md-hr {
+  border: none;
+  border-top: 1px solid var(--color-hairline);
+  margin: var(--space-xxl) 0;
+}
+
+/* ── Images ── */
+.md-img {
+  max-width: 100%;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-hairline);
+  margin: var(--space-md) 0;
+}
+
+/* ── Strong / Em ── */
+.md-strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-ink);
+}
+
+.md-em {
+  font-style: italic;
+  color: var(--color-ink-secondary);
+}
+
+.md-del {
+  text-decoration: line-through;
+  color: var(--color-ink-faint);
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .markdown-body {
+    padding: var(--space-lg) var(--space-md) 60px;
+  }
+
+  .md-h1:first-child {
+    font-size: 28px;
+  }
+}
