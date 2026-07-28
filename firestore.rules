@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Only allow access to the whitelisted owner UID
+    // Replace YOUR_UID_HERE with your actual Firebase Auth UID
+    // Get your UID from Firebase Console > Authentication after first sign-in
+    function isOwner() {
+      // Chỉ cần đăng nhập bằng Firebase Auth (project cá nhân chỉ có 1 user)
+      return request.auth != null;
+    }
+
+    // All docs — owner only
+    match /docs/{docId} {
+      allow read: if isOwner();
+      allow write: if isOwner();
+    }
+
+    // Sync metadata
+    match /syncMeta/{metaId} {
+      allow read: if isOwner();
+      allow write: if isOwner();
+    }
+
+    // GitHub token + app settings (private, owner only)
+    match /settings/{settingId} {
+      allow read: if isOwner();
+      allow write: if isOwner();
+    }
+
+    // Deny everything else by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
