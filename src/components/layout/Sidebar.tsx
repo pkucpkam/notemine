@@ -71,9 +71,23 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { docId } = useParams<{ docId: string }>();
-  const [searchActive, setSearchActive] = useState(false);
+  const [filterQuery, setFilterQuery] = useState('');
 
-  const tree = useMemo(() => buildTree(docs), [docs]);
+  const isFiltering = filterQuery.trim().length > 0;
+
+  const filteredDocs = useMemo(() => {
+    if (!filterQuery.trim()) return docs;
+    const q = filterQuery.toLowerCase().trim();
+    return docs.filter(
+      (doc) =>
+        (doc.title && doc.title.toLowerCase().includes(q)) ||
+        doc.path.toLowerCase().includes(q) ||
+        doc.repo.toLowerCase().includes(q) ||
+        (doc.content && doc.content.toLowerCase().includes(q))
+    );
+  }, [docs, filterQuery]);
+
+  const tree = useMemo(() => buildTree(filteredDocs), [filteredDocs]);
   const repos = useMemo(() => Object.keys(tree), [tree]);
 
   const handleDocSelect = useCallback((doc: DocEntry) => {
@@ -117,61 +131,67 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
         </button>
       </div>
 
-      {/* Search */}
+      {/* Filter Input */}
       <div className="sidebar-search-wrap">
         <SearchBar
-          onFocus={() => setSearchActive(true)}
-          onBlur={() => setSearchActive(false)}
-          onSelectDoc={handleDocSelect}
+          value={filterQuery}
+          onChange={setFilterQuery}
+          placeholder="Filter files..."
         />
       </div>
 
       {/* Nav links */}
-      {!searchActive && (
-        <div className="sidebar-nav">
-          <button
-            className="sidebar-nav-item"
-            onClick={() => navigate('/')}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-            Home
-          </button>
-        </div>
-      )}
+      <div className="sidebar-nav">
+        <button
+          className="sidebar-nav-item"
+          onClick={() => navigate('/')}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+          Home
+        </button>
+      </div>
 
       {/* File tree */}
-      {!searchActive && (
-        <div className="sidebar-tree-wrap">
-          {loading ? (
-            <div className="sidebar-loading">
-              <div className="sidebar-loading-dots">
-                <span /><span /><span />
-              </div>
+      <div className="sidebar-tree-wrap">
+        {loading ? (
+          <div className="sidebar-loading">
+            <div className="sidebar-loading-dots">
+              <span /><span /><span />
             </div>
-          ) : repos.length === 0 ? (
-            <div className="sidebar-empty">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-              </svg>
-              <p>No documents yet</p>
-              <span>Sync a GitHub repo to get started</span>
-            </div>
-          ) : (
-            repos.map((repo) => (
-              <div key={repo} className="sidebar-repo-section">
-                <div className="sidebar-repo-label text-eyebrow text-faint">
-                  {repo.split('/')[1] || repo}
-                </div>
-                <FileTree
-                  nodes={tree[repo]}
-                  activeDocId={docId}
-                  onSelectDoc={handleDocSelect}
-                />
+          </div>
+        ) : docs.length === 0 ? (
+          <div className="sidebar-empty">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+            </svg>
+            <p>No documents yet</p>
+            <span>Sync a GitHub repo to get started</span>
+          </div>
+        ) : repos.length === 0 ? (
+          <div className="sidebar-empty">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <p>No matching files</p>
+            <span>Try a different filter term</span>
+          </div>
+        ) : (
+          repos.map((repo) => (
+            <div key={repo} className="sidebar-repo-section">
+              <div className="sidebar-repo-label text-eyebrow text-faint">
+                {repo.split('/')[1] || repo}
               </div>
-            ))
-          )}
-        </div>
-      )}
+              <FileTree
+                nodes={tree[repo]}
+                activeDocId={docId}
+                onSelectDoc={handleDocSelect}
+                isFiltering={isFiltering}
+              />
+            </div>
+          ))
+        )}
+      </div>
 
       {/* Sync status at bottom */}
       <div className="sidebar-footer">

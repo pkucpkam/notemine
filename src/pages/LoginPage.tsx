@@ -15,8 +15,11 @@ export default function LoginPage() {
       await signInWithGitHub();
       navigate('/');
     } catch (err: unknown) {
+      console.error('Login error:', err);
       if (err instanceof Error && err.message === 'ACCESS_DENIED') {
         setError('Access denied. This app is private.');
+      } else if (err instanceof Error) {
+        setError(`Login failed: ${err.message}`);
       } else {
         setError('Login failed. Please try again.');
       }

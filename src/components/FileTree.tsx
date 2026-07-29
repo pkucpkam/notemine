@@ -8,6 +8,7 @@ interface FileTreeProps {
   activeDocId?: string;
   onSelectDoc: (doc: DocEntry) => void;
   depth?: number;
+  isFiltering?: boolean;
 }
 
 export default function FileTree({
@@ -15,6 +16,7 @@ export default function FileTree({
   activeDocId,
   onSelectDoc,
   depth = 0,
+  isFiltering = false,
 }: FileTreeProps) {
   return (
     <div className="file-tree" style={{ '--depth': depth } as React.CSSProperties}>
@@ -25,6 +27,7 @@ export default function FileTree({
           activeDocId={activeDocId}
           onSelectDoc={onSelectDoc}
           depth={depth}
+          isFiltering={isFiltering}
         />
       ))}
     </div>
@@ -36,13 +39,16 @@ function FileTreeNode({
   activeDocId,
   onSelectDoc,
   depth,
+  isFiltering = false,
 }: {
   node: TreeNode;
   activeDocId?: string;
   onSelectDoc: (doc: DocEntry) => void;
   depth: number;
+  isFiltering?: boolean;
 }) {
-  const [open, setOpen] = useState(depth < 1); // Auto-open first level
+  const [manualOpen, setManualOpen] = useState(depth < 1); // Auto-open first level
+  const open = isFiltering ? true : manualOpen;
   const isActive = node.doc && node.doc.id === activeDocId;
 
   if (node.isDir) {
@@ -50,7 +56,7 @@ function FileTreeNode({
       <div className="tree-dir">
         <button
           className={`tree-item tree-dir-toggle ${open ? 'open' : ''}`}
-          onClick={() => setOpen(!open)}
+          onClick={() => setManualOpen(!open)}
           style={{ paddingLeft: `${12 + depth * 16}px` }}
         >
           <span className="tree-chevron" aria-hidden="true">
@@ -73,6 +79,7 @@ function FileTreeNode({
               activeDocId={activeDocId}
               onSelectDoc={onSelectDoc}
               depth={depth + 1}
+              isFiltering={isFiltering}
             />
           )}
         </div>

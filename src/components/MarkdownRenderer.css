@@ -4,11 +4,13 @@
    ============================================ */
 
 .markdown-body {
-  max-width: 720px;
+  width: 100%;
+  max-width: 880px;
   margin: 0 auto;
-  padding: var(--space-xxl) var(--space-xxl) 80px;
+  padding: var(--space-xl) var(--space-xl) 80px;
   color: var(--color-ink);
   font-family: var(--font-family);
+  box-sizing: border-box;
 }
 
 /* ── Headings ── */

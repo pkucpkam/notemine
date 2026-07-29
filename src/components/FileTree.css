@@ -5,19 +5,16 @@
 /* ── Common item styles ── */
 .tree-item {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 6px;
   width: 100%;
-  padding-top: 3px;
-  padding-bottom: 3px;
+  padding-top: 4px;
+  padding-bottom: 4px;
   padding-right: var(--space-xs);
   font-size: var(--font-size-body-sm);
   color: var(--color-ink-secondary);
   border-radius: var(--radius-sm);
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   transition: background var(--transition-fast), color var(--transition-fast);
   border: none;
   background: none;
@@ -55,6 +52,7 @@
   flex-shrink: 0;
   color: var(--color-ink-faint);
   transition: transform var(--transition-fast);
+  margin-top: 3px;
 }
 
 .tree-dir-toggle.open .tree-chevron {
@@ -66,6 +64,7 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .tree-icon-folder {
@@ -74,14 +73,15 @@
 
 .tree-icon-file {
   color: var(--color-ink-faint);
-  margin-left: 14px; /* align with dir chevron + icon */
+  margin-left: 16px; /* align with dir chevron + icon */
 }
 
 /* ── Label ── */
 .tree-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
   min-width: 0;
   flex: 1;
 }
