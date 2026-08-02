@@ -1,0 +1,235 @@
+/* ────────────────────────────────────
+   DocEditor — Inline Markdown Editor
+   ──────────────────────────────────── */
+
+.doc-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-canvas);
+  min-height: 0;
+}
+
+/* ── Draft Restored Banner ── */
+.doc-editor-draft-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 8px var(--space-md);
+  background: rgba(26, 174, 57, 0.08);
+  border-bottom: 1px solid rgba(26, 174, 57, 0.2);
+  font-size: var(--font-size-caption);
+  color: #1aae39;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.doc-editor-draft-banner svg {
+  flex-shrink: 0;
+}
+
+.doc-editor-draft-banner span {
+  flex: 1;
+}
+
+.doc-editor-draft-discard {
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-ink-faint);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.doc-editor-draft-discard:hover {
+  color: var(--color-ink-muted);
+}
+
+/* ── Toolbar ── */
+.doc-editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs) var(--space-md);
+  border-bottom: 1px solid var(--color-hairline);
+  background: var(--color-canvas-soft);
+  flex-shrink: 0;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.doc-editor-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.doc-editor-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+/* ── Dirty Badge ── */
+.doc-editor-dirty-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--font-size-eyebrow);
+  color: var(--color-ink-faint);
+  white-space: nowrap;
+}
+
+.doc-editor-dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent-orange);
+  flex-shrink: 0;
+  animation: dirty-pulse 2s ease infinite;
+}
+
+@keyframes dirty-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.doc-editor-autosave-hint {
+  color: var(--color-ink-faint);
+  font-size: var(--font-size-eyebrow);
+}
+
+/* ── View Toggle ── */
+.doc-editor-view-toggle {
+  display: flex;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.doc-editor-view-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-ink-muted);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.doc-editor-view-btn:hover:not(.active) {
+  background: var(--color-canvas-soft);
+  color: var(--color-ink);
+}
+
+.doc-editor-view-btn.active {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* ── Exit Button ── */
+.doc-editor-exit-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-ink-muted);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.doc-editor-exit-btn:hover {
+  background: var(--color-canvas-soft);
+  color: var(--color-ink);
+}
+
+/* ── Commit Button ── */
+.doc-editor-commit-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  white-space: nowrap;
+}
+
+.doc-editor-commit-btn:hover:not(:disabled) {
+  background: var(--color-primary-active);
+  box-shadow: 0 2px 8px rgba(0, 117, 222, 0.3);
+}
+
+.doc-editor-commit-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.doc-editor-commit-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Body ── */
+.doc-editor-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Textarea ── */
+.doc-editor-textarea {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-lg) var(--space-xxl);
+  font-size: var(--font-size-body-sm);
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Menlo', 'Consolas', monospace;
+  line-height: 1.7;
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  border: none;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.doc-editor-textarea::placeholder {
+  color: var(--color-ink-faint);
+}
+
+/* ── Preview ── */
+.doc-editor-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg) var(--space-xxl);
+}
+
+@media (max-width: 768px) {
+  .doc-editor-textarea {
+    padding: var(--space-md) var(--space-md);
+  }
+
+  .doc-editor-preview {
+    padding: var(--space-md) var(--space-md);
+  }
+
+  .doc-editor-toolbar {
+    padding: var(--space-xs) var(--space-sm);
+  }
+}

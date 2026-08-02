@@ -45,6 +45,61 @@
   border-radius: var(--radius-full);
 }
 
+/* ── Draft node — chưa upload lên GitHub ── */
+.tree-item-draft {
+  color: #1aae39 !important;
+}
+
+.tree-item-draft:hover {
+  background: rgba(26, 174, 57, 0.06) !important;
+  color: #16843a !important;
+}
+
+.tree-dir-draft > .tree-dir-row .tree-icon-folder {
+  color: #1aae39;
+}
+
+.tree-icon-file-draft {
+  color: #1aae39;
+  margin-left: 16px;
+}
+
+/* Draft badge trên folder */
+.tree-draft-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #1aae39;
+  border-radius: var(--radius-full);
+  line-height: 1.5;
+  vertical-align: middle;
+  opacity: 0.85;
+}
+
+/* Dot indicator trên file draft */
+.tree-draft-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #1aae39;
+  border-radius: 50%;
+  margin-left: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+  animation: draft-dot-pulse 2s ease infinite;
+}
+
+@keyframes draft-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
 /* ── Chevron ── */
 .tree-chevron {
   display: flex;
@@ -104,4 +159,84 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ── Folder row with actions ── */
+.tree-dir-row {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.tree-dir-row .tree-item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Folder context menu trigger ── */
+.tree-folder-actions {
+  position: relative;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.tree-folder-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--color-ink-faint);
+  border-radius: var(--radius-xs);
+  opacity: 0;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+.tree-dir-row:hover .tree-folder-more-btn,
+.tree-folder-more-btn:focus,
+.tree-folder-more-btn[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.tree-folder-more-btn:hover {
+  background: var(--color-hairline);
+  color: var(--color-ink-muted);
+}
+
+/* ── Context menu popup ── */
+.tree-folder-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 200;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  min-width: 180px;
+  padding: 4px;
+  animation: tree-menu-in 0.12s ease;
+}
+
+@keyframes tree-menu-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.tree-folder-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: 6px 10px;
+  font-size: var(--font-size-caption);
+  color: var(--color-ink-muted);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.tree-folder-menu-item:hover {
+  background: var(--color-canvas-soft);
+  color: var(--color-ink);
 }

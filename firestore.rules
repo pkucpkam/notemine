@@ -27,6 +27,12 @@ service cloud.firestore {
       allow write: if isOwner();
     }
 
+    // Draft docs (chưa upload lên GitHub)
+    match /drafts/{draftId} {
+      allow read: if isOwner();
+      allow write: if isOwner();
+    }
+
     // Deny everything else by default
     match /{document=**} {
       allow read, write: if false;
