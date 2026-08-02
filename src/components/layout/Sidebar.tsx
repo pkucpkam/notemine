@@ -7,7 +7,9 @@ import { signOutUser } from '../../lib/auth';
 import SearchBar from '../SearchBar';
 import FileTree from '../FileTree';
 import SyncStatus from '../SyncStatus';
-import type { DocEntry } from '../../lib/firestore';
+import UploadDraftsButton from '../UploadDraftsButton';
+import NewItemModal, { type NewItemType } from '../NewItemModal';
+import type { DocEntry, DraftEntry } from '../../lib/firestore';
 
 interface SidebarProps {
   onClose: () => void;
@@ -22,20 +24,58 @@ export interface TreeNode {
   isDir: boolean;
   children: TreeNode[];
   doc?: DocEntry;
+  isDraft?: boolean;   // node màu xanh lá = chưa upload
+  draft?: DraftEntry;  // draft data nếu là draft node
 }
 
-function buildTree(docs: DocEntry[]): Record<string, TreeNode[]> {
-  const byRepo: Record<string, DocEntry[]> = {};
+function buildTree(
+  docs: DocEntry[],
+  drafts: DraftEntry[]
+): Record<string, TreeNode[]> {
+  // Gom theo repo
+  const byRepo: Record<string, { docs: DocEntry[]; drafts: DraftEntry[] }> = {};
+
   for (const doc of docs) {
-    if (!byRepo[doc.repo]) byRepo[doc.repo] = [];
-    byRepo[doc.repo].push(doc);
+    if (!byRepo[doc.repo]) byRepo[doc.repo] = { docs: [], drafts: [] };
+    byRepo[doc.repo].docs.push(doc);
+  }
+
+  // Thêm draft vào đúng repo bucket
+  for (const draft of drafts) {
+    if (!byRepo[draft.repo]) byRepo[draft.repo] = { docs: [], drafts: [] };
+    byRepo[draft.repo].drafts.push(draft);
   }
 
   const result: Record<string, TreeNode[]> = {};
-  for (const [repo, repoDocs] of Object.entries(byRepo)) {
+
+  for (const [repo, { docs: repoDocs, drafts: repoDrafts }] of Object.entries(byRepo)) {
     const root: TreeNode[] = [];
     const nodeMap: Record<string, TreeNode> = {};
 
+    // Helper để đảm bảo folder tồn tại
+    function ensureFolder(parts: string[], upTo: number): string {
+      let currentPath = '';
+      let currentArr = root;
+      for (let i = 0; i < upTo; i++) {
+        const part = parts[i];
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        if (!nodeMap[currentPath]) {
+          const node: TreeNode = {
+            name: part,
+            path: currentPath,
+            repo,
+            isDir: true,
+            children: [],
+          };
+          nodeMap[currentPath] = node;
+          currentArr.push(node);
+        }
+        currentArr = nodeMap[currentPath].children;
+      }
+      return currentPath;
+    }
+
+    // Thêm docs đã sync vào tree
     for (const doc of repoDocs.sort((a, b) => a.path.localeCompare(b.path))) {
       const parts = doc.path.split('/');
       let currentPath = '';
@@ -61,17 +101,65 @@ function buildTree(docs: DocEntry[]): Record<string, TreeNode[]> {
         currentArr = nodeMap[currentPath].children;
       }
     }
+
+    // Thêm drafts vào tree (hiển thị màu xanh lá)
+    for (const draft of repoDrafts.sort((a, b) => a.path.localeCompare(b.path))) {
+      const parts = draft.path.split('/');
+      const isFolder = draft.type === 'folder';
+
+      if (isFolder) {
+        // Đảm bảo folder draft được thêm
+        ensureFolder(parts, parts.length);
+        // Đánh dấu folder node là draft
+        const folderPath = parts.join('/');
+        if (nodeMap[folderPath]) {
+          nodeMap[folderPath].isDraft = true;
+          nodeMap[folderPath].draft = draft;
+        }
+      } else {
+        // Document draft
+        // Đảm bảo folder cha tồn tại
+        if (parts.length > 1) {
+          ensureFolder(parts, parts.length - 1);
+        }
+        const docPath = parts.join('/');
+        if (!nodeMap[docPath]) {
+          const parentPath = parts.slice(0, -1).join('/');
+          const parentArr = parentPath ? nodeMap[parentPath]?.children : root;
+          if (parentArr) {
+            const node: TreeNode = {
+              name: draft.title || parts[parts.length - 1],
+              path: docPath,
+              repo,
+              isDir: false,
+              children: [],
+              isDraft: true,
+              draft,
+            };
+            nodeMap[docPath] = node;
+            parentArr.push(node);
+          }
+        }
+      }
+    }
+
     result[repo] = root;
   }
+
   return result;
 }
 
 export default function Sidebar({ onClose, isMobile }: SidebarProps) {
-  const { docs, syncMeta, loading } = useDocs();
+  const { docs, drafts, syncMeta, loading } = useDocs();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { docId } = useParams<{ docId: string }>();
   const [filterQuery, setFilterQuery] = useState('');
+  const [newItemModal, setNewItemModal] = useState<{
+    open: boolean;
+    type: NewItemType;
+    folder: string;
+  }>({ open: false, type: 'document', folder: '' });
 
   const isFiltering = filterQuery.trim().length > 0;
 
@@ -87,7 +175,20 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
     );
   }, [docs, filterQuery]);
 
-  const tree = useMemo(() => buildTree(filteredDocs), [filteredDocs]);
+  const filteredDrafts = useMemo(() => {
+    if (!filterQuery.trim()) return drafts;
+    const q = filterQuery.toLowerCase().trim();
+    return drafts.filter(
+      (d) =>
+        d.title.toLowerCase().includes(q) ||
+        d.path.toLowerCase().includes(q)
+    );
+  }, [drafts, filterQuery]);
+
+  const tree = useMemo(
+    () => buildTree(filteredDocs, filteredDrafts),
+    [filteredDocs, filteredDrafts]
+  );
   const repos = useMemo(() => Object.keys(tree), [tree]);
 
   const handleDocSelect = useCallback((doc: DocEntry) => {
@@ -99,6 +200,17 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
     await signOutUser();
     navigate('/login');
   }, [navigate]);
+
+  const openNewItemModal = useCallback((type: NewItemType, folder = '') => {
+    setNewItemModal({ open: true, type, folder });
+  }, []);
+
+  const closeNewItemModal = useCallback(() => {
+    setNewItemModal((prev) => ({ ...prev, open: false }));
+  }, []);
+
+  // Kiểm tra xem có doc/draft nào để hiển thị không
+  const hasContent = docs.length > 0 || drafts.length > 0;
 
   return (
     <div className="sidebar">
@@ -151,6 +263,34 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
         </button>
       </div>
 
+      {/* Action bar: New doc / New folder */}
+      <div className="sidebar-action-bar">
+        <button
+          id="sidebar-new-doc-btn"
+          className="sidebar-action-btn"
+          onClick={() => openNewItemModal('document')}
+          title="Tạo tài liệu mới"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+            <line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" />
+          </svg>
+          Tài liệu
+        </button>
+        <button
+          id="sidebar-new-folder-btn"
+          className="sidebar-action-btn"
+          onClick={() => openNewItemModal('folder')}
+          title="Tạo thư mục mới"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+            <line x1="12" y1="11" x2="12" y2="17" /><line x1="9" y1="14" x2="15" y2="14" />
+          </svg>
+          Thư mục
+        </button>
+      </div>
+
       {/* File tree */}
       <div className="sidebar-tree-wrap">
         {loading ? (
@@ -159,13 +299,13 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
               <span /><span /><span />
             </div>
           </div>
-        ) : docs.length === 0 ? (
+        ) : !hasContent ? (
           <div className="sidebar-empty">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
             </svg>
             <p>No documents yet</p>
-            <span>Sync a GitHub repo to get started</span>
+            <span>Sync a GitHub repo or create a new document</span>
           </div>
         ) : repos.length === 0 ? (
           <div className="sidebar-empty">
@@ -187,16 +327,30 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
                 activeDocId={docId}
                 onSelectDoc={handleDocSelect}
                 isFiltering={isFiltering}
+                onNewDocInFolder={(folderPath) => openNewItemModal('document', folderPath)}
+                onNewFolderInFolder={(folderPath) => openNewItemModal('folder', folderPath)}
               />
             </div>
           ))
         )}
       </div>
 
+      {/* Upload drafts panel — hiện khi có draft */}
+      <UploadDraftsButton />
+
       {/* Sync status at bottom */}
       <div className="sidebar-footer">
         <SyncStatus syncMeta={syncMeta} />
       </div>
+
+      {/* New Item Modal */}
+      <NewItemModal
+        isOpen={newItemModal.open}
+        onClose={closeNewItemModal}
+        defaultType={newItemModal.type}
+        contextFolder={newItemModal.folder}
+        onSuccess={() => {}}
+      />
     </div>
   );
 }

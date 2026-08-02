@@ -1,14 +1,21 @@
 import './DocPage.css';
+import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDocs } from '../contexts/DocsContext';
 import MarkdownRenderer from '../components/MarkdownRenderer';
+import DocEditor from '../components/DocEditor';
 
 export default function DocPage() {
   const { docId } = useParams<{ docId: string }>();
   const { getDocById, loading } = useDocs();
   const navigate = useNavigate();
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const doc = docId ? getDocById(docId) : undefined;
+
+  const handleCommitSuccess = useCallback((_newSha: string) => {
+    // sha sẽ được cập nhật qua Firestore subscription sau khi sync
+  }, []);
 
   if (loading) {
     return (
@@ -69,12 +76,47 @@ export default function DocPage() {
           </svg>
         </span>
         <span className="doc-breadcrumb-current">{doc.title || pathParts[pathParts.length - 1]}</span>
+
+        {/* Edit toggle button in breadcrumb */}
+        <div className="doc-breadcrumb-actions">
+          <button
+            id="doc-edit-toggle-btn"
+            className={`doc-edit-btn ${isEditMode ? 'doc-edit-btn-active' : ''}`}
+            onClick={() => setIsEditMode(!isEditMode)}
+            title={isEditMode ? 'Thoát chỉnh sửa' : 'Chỉnh sửa tài liệu'}
+          >
+            {isEditMode ? (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                </svg>
+                View
+              </>
+            ) : (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Edit
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="doc-content">
-        <MarkdownRenderer content={doc.content || ''} />
-      </div>
+      {/* Content / Editor */}
+      {isEditMode ? (
+        <DocEditor
+          doc={doc}
+          onCommitSuccess={handleCommitSuccess}
+          onExitEdit={() => setIsEditMode(false)}
+        />
+      ) : (
+        <div className="doc-content">
+          <MarkdownRenderer content={doc.content || ''} />
+        </div>
+      )}
     </div>
   );
 }

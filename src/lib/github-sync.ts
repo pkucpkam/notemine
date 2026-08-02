@@ -1,7 +1,9 @@
-import { doc, setDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from './firebase';
 import { getGitHubToken } from './github-token';
 import { GITHUB_REPOS } from './config';
+import type { DraftEntry } from './firestore';
+
 
 export interface GitHubFile {
   path: string;
@@ -224,5 +226,232 @@ export async function commitFileToGitHub(params: {
 
   if (!res.ok) throw new Error(`GitHub commit error: ${res.status} ${await res.text()}`);
   const data = await res.json() as { content: { sha: string } };
+
+  // Cập nhật ngay lập tức vào Firestore docs để UI phản hồi tức thì mà không cần đợi sync
+  const { content: parsedContent, data: frontmatter } = parseFrontmatter(content);
+  const title = extractTitle(parsedContent, frontmatter) || path.split('/').pop()?.replace('.md', '') || '';
+  const headings = extractHeadings(parsedContent);
+  const docId = slugify(repo, path);
+
+  await setDoc(
+    doc(db, 'docs', docId),
+    {
+      repo,
+      path,
+      title,
+      content: parsedContent,
+      headings,
+      frontmatter,
+      sha: data.content.sha,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
   return data.content.sha;
 }
+
+// Tạo file mới trên GitHub (không cần sha vì file chưa tồn tại)
+export async function createFileOnGitHub(params: {
+  repo: string; // "owner/repo"
+  path: string;
+  content: string;
+  message?: string;
+  branch?: string;
+}): Promise<string> {
+  const token = await getGitHubToken();
+  if (!token) throw new Error('NO_TOKEN');
+
+  const { repo, path, content, message = `docs: create ${params.path}`, branch = 'main' } = params;
+  const [owner, repoName] = repo.split('/');
+
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repoName}/contents/${path}`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `token ${token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/vnd.github.v3+json',
+      },
+      body: JSON.stringify({
+        message,
+        content: btoa(unescape(encodeURIComponent(content))),
+        branch,
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`GitHub create error: ${res.status} ${errText}`);
+  }
+  const data = await res.json() as { content: { sha: string } };
+  return data.content.sha;
+}
+
+// Tạo thư mục trên GitHub bằng cách tạo file .gitkeep bên trong
+export async function createFolderOnGitHub(params: {
+  repo: string; // "owner/repo"
+  folderPath: string; // e.g. "notes/my-folder"
+  message?: string;
+  branch?: string;
+}): Promise<void> {
+  const { repo, folderPath, message = `docs: create folder ${params.folderPath}`, branch = 'main' } = params;
+  // GitHub không hỗ trợ tạo folder trống, phải tạo file bên trong
+  await createFileOnGitHub({
+    repo,
+    path: `${folderPath}/.gitkeep`,
+    content: '',
+    message,
+    branch,
+  });
+}
+
+// Lấy danh sách branches của repo
+export async function listRepoBranches(repo: string): Promise<string[]> {
+  const token = await getGitHubToken();
+  if (!token) throw new Error('NO_TOKEN');
+
+  const [owner, repoName] = repo.split('/');
+  const res = await fetch(
+    `https://api.github.com/repos/${owner}/${repoName}/branches?per_page=50`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+      },
+    }
+  );
+  if (!res.ok) throw new Error(`GitHub branches error: ${res.status}`);
+  const data = await res.json() as Array<{ name: string }>;
+  return data.map((b) => b.name);
+}
+
+export type UploadProgress = (msg: string) => void;
+
+/**
+ * Upload tất cả drafts lên GitHub.
+ * Mỗi draft là 1 file riêng biệt.
+ * Commit message: "notemine/add content"
+ * Commit body: danh sách tên file
+ *
+ * Trả về danh sách { draftId, newSha } đã commit thành công.
+ */
+export async function uploadDraftsToGitHub(
+  drafts: DraftEntry[],
+  onProgress?: UploadProgress
+): Promise<Array<{ draftId: string; path: string; newSha: string }>> {
+  const token = await getGitHubToken();
+  if (!token) throw new Error('NO_TOKEN');
+
+  if (drafts.length === 0) throw new Error('NO_DRAFTS');
+
+  const results: Array<{ draftId: string; path: string; newSha: string }> = [];
+  const fileNames = drafts
+    .filter((d) => d.type === 'document')
+    .map((d) => d.path.split('/').pop() || d.path)
+    .join(', ');
+
+  const commitMessage = 'notemine/add content';
+  const commitBody = fileNames || drafts.map((d) => d.path).join(', ');
+
+  for (const draft of drafts) {
+    onProgress?.(`Đang upload: ${draft.path}…`);
+
+    const [owner, repoName] = draft.repo.split('/');
+    const branch = draft.branch || 'main';
+
+    if (draft.type === 'folder') {
+      // Tạo .gitkeep cho folder
+      try {
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repoName}/contents/${draft.path}/.gitkeep`,
+          {
+            method: 'PUT',
+            headers: {
+              Authorization: `token ${token}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/vnd.github.v3+json',
+            },
+            body: JSON.stringify({
+              message: `${commitMessage}\n\n${commitBody}`,
+              content: btoa(''),
+              branch,
+            }),
+          }
+        );
+        if (res.ok) {
+          const data = await res.json() as { content: { sha: string } };
+          results.push({ draftId: draft.id, path: draft.path, newSha: data.content.sha });
+          // Xóa folder draft khỏi Firestore
+          await deleteDoc(doc(db, 'drafts', draft.id));
+        }
+      } catch {
+        // bỏ qua lỗi folder, tiếp tục
+      }
+      continue;
+    }
+
+    // Document
+    const content = draft.content || `# ${draft.title}\n\n`;
+    const encodedContent = btoa(unescape(encodeURIComponent(content)));
+
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/contents/${draft.path}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `token ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/vnd.github.v3+json',
+        },
+        body: JSON.stringify({
+          message: `${commitMessage}\n\n${commitBody}`,
+          content: encodedContent,
+          branch,
+          // sha không có vì file mới
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Upload ${draft.path} thất bại: ${res.status} ${errText.slice(0, 100)}`);
+    }
+
+    const data = await res.json() as { content: { sha: string } };
+
+    // TỰ ĐỘNG CHUYỂN TỪ DRAFT THÀNH DOC TRONG FIRESTORE NGAY LẬP TỨC
+    // Điều này giúp file chuyển từ màu Xanh (Draft) sang màu thường mà không bao giờ biến mất khỏi UI
+    const { content: parsedContent, data: frontmatter } = parseFrontmatter(content);
+    const title = extractTitle(parsedContent, frontmatter) || draft.title || draft.path.split('/').pop()?.replace('.md', '') || '';
+    const headings = extractHeadings(parsedContent);
+    const docId = slugify(draft.repo, draft.path);
+
+    // 1. Tạo document chính thức trong Firestore `docs`
+    await setDoc(
+      doc(db, 'docs', docId),
+      {
+        repo: draft.repo,
+        path: draft.path,
+        title,
+        content: parsedContent,
+        headings,
+        frontmatter,
+        sha: data.content.sha,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    // 2. Xóa khỏi `drafts` collection
+    await deleteDoc(doc(db, 'drafts', draft.id));
+
+    results.push({ draftId: draft.id, path: draft.path, newSha: data.content.sha });
+    onProgress?.(`✓ Uploaded: ${draft.path}`);
+  }
+
+  return results;
+}
+
