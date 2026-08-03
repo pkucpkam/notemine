@@ -86,7 +86,7 @@ export default function NewItemModal({
         repo,
         path: fullPath,
         title,
-        content: type === 'document' ? `# ${title}\n\n` : '',
+        content: '',
         type,
         branch,
       });

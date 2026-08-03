@@ -1,6 +1,7 @@
 import './FileTree.css';
 import { useState, useRef, useEffect } from 'react';
 import type { DocEntry } from '../lib/firestore';
+import type { Timestamp } from 'firebase/firestore';
 import type { TreeNode } from './layout/Sidebar';
 
 interface FileTreeProps {
@@ -166,10 +167,30 @@ function FileTreeNode({
   }
 
   // File node (doc hoặc draft)
+  function handleFileClick() {
+    if (node.doc) {
+      onSelectDoc(node.doc);
+    } else if (node.draft && node.draft.type === 'document') {
+      // Tạo DocEntry tạm từ draft để navigate
+      const tempDoc: DocEntry = {
+        id: node.draft.id,
+        repo: node.draft.repo,
+        path: node.draft.path,
+        title: node.draft.title,
+        content: node.draft.content,
+        sha: '',
+        headings: [],
+        frontmatter: {},
+        updatedAt: node.draft.updatedAt as Timestamp | null,
+      };
+      onSelectDoc(tempDoc);
+    }
+  }
+
   return (
     <button
       className={`tree-item tree-file ${isActive ? 'tree-item-active' : ''} ${isDraft ? 'tree-item-draft' : ''}`}
-      onClick={() => node.doc && onSelectDoc(node.doc)}
+      onClick={handleFileClick}
       style={{ paddingLeft: `${12 + depth * 16}px` }}
       title={isDraft ? `${node.path} — Nháp, chưa upload lên GitHub` : node.path}
     >
