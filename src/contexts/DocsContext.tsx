@@ -16,6 +16,7 @@ interface DocsContextValue {
   loading: boolean;
   getDocById: (id: string) => DocEntry | undefined;
   getDocsByRepo: (repo: string) => DocEntry[];
+  getDraftById: (id: string) => DraftEntry | undefined;
 }
 
 const DocsContext = createContext<DocsContextValue>({
@@ -25,6 +26,7 @@ const DocsContext = createContext<DocsContextValue>({
   loading: true,
   getDocById: () => undefined,
   getDocsByRepo: () => [],
+  getDraftById: () => undefined,
 });
 
 export function DocsProvider({ children }: { children: ReactNode }) {
@@ -61,8 +63,13 @@ export function DocsProvider({ children }: { children: ReactNode }) {
     [docs]
   );
 
+  const getDraftById = useCallback(
+    (id: string) => drafts.find((d) => d.id === id),
+    [drafts]
+  );
+
   return (
-    <DocsContext.Provider value={{ docs, drafts, syncMeta, loading, getDocById, getDocsByRepo }}>
+    <DocsContext.Provider value={{ docs, drafts, syncMeta, loading, getDocById, getDocsByRepo, getDraftById }}>
       {children}
     </DocsContext.Provider>
   );

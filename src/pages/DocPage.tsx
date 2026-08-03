@@ -4,14 +4,32 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useDocs } from '../contexts/DocsContext';
 import MarkdownRenderer from '../components/MarkdownRenderer';
 import DocEditor from '../components/DocEditor';
+import type { DocEntry } from '../lib/firestore';
+import type { Timestamp } from 'firebase/firestore';
 
 export default function DocPage() {
   const { docId } = useParams<{ docId: string }>();
-  const { getDocById, loading } = useDocs();
+  const { getDocById, getDraftById, loading } = useDocs();
   const navigate = useNavigate();
   const [isEditMode, setIsEditMode] = useState(false);
 
-  const doc = docId ? getDocById(docId) : undefined;
+  const syncedDoc = docId ? getDocById(docId) : undefined;
+  const draft = !syncedDoc && docId ? getDraftById(docId) : undefined;
+
+  // Nếu là draft, tạo DocEntry tạm để render DocEditor
+  const doc: DocEntry | undefined = syncedDoc ?? (draft ? {
+    id: draft.id,
+    repo: draft.repo,
+    path: draft.path,
+    title: draft.title,
+    content: draft.content,
+    sha: '',
+    headings: [],
+    frontmatter: {},
+    updatedAt: draft.updatedAt as Timestamp | null,
+  } : undefined);
+
+  const isDraftDoc = !syncedDoc && !!draft;
 
   const handleCommitSuccess = useCallback((_newSha: string) => {
     // sha sẽ được cập nhật qua Firestore subscription sau khi sync
@@ -75,7 +93,12 @@ export default function DocPage() {
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </span>
-        <span className="doc-breadcrumb-current">{doc.title || pathParts[pathParts.length - 1]}</span>
+        <span className="doc-breadcrumb-current">
+          {doc.title || pathParts[pathParts.length - 1]}
+          {isDraftDoc && (
+            <span className="doc-breadcrumb-draft-badge" title="Nháp, chưa upload lên GitHub">draft</span>
+          )}
+        </span>
 
         {/* Edit toggle button in breadcrumb */}
         <div className="doc-breadcrumb-actions">
@@ -106,11 +129,11 @@ export default function DocPage() {
       </div>
 
       {/* Content / Editor */}
-      {isEditMode ? (
+      {(isEditMode || isDraftDoc) ? (
         <DocEditor
           doc={doc}
           onCommitSuccess={handleCommitSuccess}
-          onExitEdit={() => setIsEditMode(false)}
+          onExitEdit={isDraftDoc ? undefined : () => setIsEditMode(false)}
         />
       ) : (
         <div className="doc-content">
