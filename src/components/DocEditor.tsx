@@ -2,10 +2,13 @@ import './DocEditor.css';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 import CommitModal from './CommitModal';
-import type { DocEntry } from '../lib/firestore';
+import type { DocEntry, DraftEntry } from '../lib/firestore';
+import { updateDraftContent, saveDraft } from '../lib/firestore';
 
 interface DocEditorProps {
   doc: DocEntry;
+  isDraft?: boolean;
+  draftMeta?: Pick<DraftEntry, 'repo' | 'path' | 'title' | 'type' | 'branch'>;
   onCommitSuccess?: (newSha: string) => void;
   onExitEdit?: () => void;
 }
@@ -44,7 +47,9 @@ function clearDraftFromStorage(docId: string): void {
   } catch { /* ignore */ }
 }
 
-export default function DocEditor({ doc, onCommitSuccess, onExitEdit }: DocEditorProps) {
+type FirebaseSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+export default function DocEditor({ doc, isDraft, draftMeta, onCommitSuccess, onExitEdit }: DocEditorProps) {
   const [content, setContent] = useState(doc.content || '');
   const [isDirty, setIsDirty] = useState(false);
   const [isPreview, setIsPreview] = useState(false);
@@ -52,6 +57,8 @@ export default function DocEditor({ doc, onCommitSuccess, onExitEdit }: DocEdito
   const [draftRestored, setDraftRestored] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [currentSha, setCurrentSha] = useState(doc.sha || '');
+  const [fbSaveStatus, setFbSaveStatus] = useState<FirebaseSaveStatus>('idle');
+  const fbSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef(content);
@@ -114,6 +121,39 @@ export default function DocEditor({ doc, onCommitSuccess, onExitEdit }: DocEdito
     clearDraftFromStorage(doc.id);
     onCommitSuccess?.(newSha);
   }, [doc.id, onCommitSuccess]);
+
+  const handleSaveDraftToFirebase = useCallback(async () => {
+    if (fbSaveStatus === 'saving') return;
+    setFbSaveStatus('saving');
+    try {
+      if (isDraft) {
+        // Draft đã có trong Firestore — cập nhật content
+        await updateDraftContent(doc.id, content);
+      } else {
+        // Synced doc đang chỉnh sửa — tạo/cập nhật DraftEntry
+        await saveDraft({
+          repo: draftMeta?.repo ?? doc.repo,
+          path: draftMeta?.path ?? doc.path,
+          title: draftMeta?.title ?? doc.title,
+          content,
+          type: draftMeta?.type ?? 'document',
+          branch: draftMeta?.branch ?? 'main',
+        });
+      }
+      // Cũng lưu localStorage để đồng bộ
+      saveDraftToStorage(doc.id, content);
+      setLastSavedAt(Date.now());
+      setFbSaveStatus('saved');
+      // Reset về idle sau 2.5s
+      if (fbSaveTimerRef.current) clearTimeout(fbSaveTimerRef.current);
+      fbSaveTimerRef.current = setTimeout(() => setFbSaveStatus('idle'), 2500);
+    } catch (err) {
+      console.error('[DocEditor] saveDraftToFirebase failed:', err);
+      setFbSaveStatus('error');
+      if (fbSaveTimerRef.current) clearTimeout(fbSaveTimerRef.current);
+      fbSaveTimerRef.current = setTimeout(() => setFbSaveStatus('idle'), 3000);
+    }
+  }, [fbSaveStatus, isDraft, doc.id, doc.repo, doc.path, doc.title, content, draftMeta]);
 
   function formatSavedTime(ts: number): string {
     const diff = Date.now() - ts;
@@ -194,6 +234,47 @@ export default function DocEditor({ doc, onCommitSuccess, onExitEdit }: DocEdito
               Đóng
             </button>
           )}
+
+          {/* Save Draft to Firebase button */}
+          <button
+            id="doc-editor-save-draft-btn"
+            className={`doc-editor-save-draft-btn doc-editor-save-draft-btn--${fbSaveStatus}`}
+            onClick={handleSaveDraftToFirebase}
+            disabled={fbSaveStatus === 'saving' || !isDirty}
+            title={
+              fbSaveStatus === 'saving' ? 'Đang lưu…' :
+              fbSaveStatus === 'saved' ? 'Đã lưu nháp vào Firebase!' :
+              fbSaveStatus === 'error' ? 'Lưu thất bại, thử lại' :
+              !isDirty ? 'Không có thay đổi' : 'Lưu nháp vào Firebase'
+            }
+          >
+            {fbSaveStatus === 'saving' && (
+              <svg className="doc-editor-save-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+            )}
+            {fbSaveStatus === 'saved' && (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+            {fbSaveStatus === 'error' && (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            )}
+            {fbSaveStatus === 'idle' && (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+            )}
+            {fbSaveStatus === 'saving' ? 'Đang lưu…' :
+             fbSaveStatus === 'saved' ? 'Đã lưu!' :
+             fbSaveStatus === 'error' ? 'Lỗi!' :
+             'Lưu nháp'}
+          </button>
 
           {/* Commit button */}
           <button
