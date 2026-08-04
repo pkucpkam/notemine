@@ -132,6 +132,7 @@ export default function DocPage() {
       {(isEditMode || isDraftDoc) ? (
         <DocEditor
           doc={doc}
+          isDraft={isDraftDoc}
           onCommitSuccess={handleCommitSuccess}
           onExitEdit={isDraftDoc ? undefined : () => setIsEditMode(false)}
         />

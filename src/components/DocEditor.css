@@ -154,6 +154,77 @@
   color: var(--color-ink);
 }
 
+/* ── Save Draft Button ── */
+.doc-editor-save-draft-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  font-size: var(--font-size-eyebrow);
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid transparent;
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast), box-shadow var(--transition-fast),
+              transform var(--transition-fast);
+}
+
+/* idle */
+.doc-editor-save-draft-btn--idle {
+  background: var(--color-canvas);
+  color: var(--color-ink-muted);
+  border-color: var(--color-hairline);
+}
+
+.doc-editor-save-draft-btn--idle:hover:not(:disabled) {
+  background: rgba(26, 174, 57, 0.08);
+  color: #1aae39;
+  border-color: rgba(26, 174, 57, 0.3);
+}
+
+/* saving */
+.doc-editor-save-draft-btn--saving {
+  background: rgba(26, 174, 57, 0.08);
+  color: #1aae39;
+  border-color: rgba(26, 174, 57, 0.3);
+  cursor: wait;
+}
+
+/* saved */
+.doc-editor-save-draft-btn--saved {
+  background: rgba(26, 174, 57, 0.12);
+  color: #15963a;
+  border-color: rgba(26, 174, 57, 0.4);
+}
+
+/* error */
+.doc-editor-save-draft-btn--error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.doc-editor-save-draft-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.doc-editor-save-draft-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Spin animation for saving icon */
+.doc-editor-save-spin {
+  animation: save-spin 0.8s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes save-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ── Commit Button ── */
 .doc-editor-commit-btn {
   display: flex;
