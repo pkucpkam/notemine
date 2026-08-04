@@ -50,6 +50,33 @@
   min-width: 0;
 }
 
+.upload-draft-delete {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--color-ink-faint);
+  background: transparent;
+  border-radius: var(--radius-xs);
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+  cursor: pointer;
+}
+
+.upload-draft-item:hover .upload-draft-delete {
+  opacity: 1;
+}
+
+.upload-draft-delete:hover {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+}
+
 .upload-draft-more {
   font-size: var(--font-size-eyebrow);
   color: var(--color-ink-faint);

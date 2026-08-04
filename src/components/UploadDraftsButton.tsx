@@ -1,7 +1,7 @@
 import './UploadDraftsButton.css';
 import { useState, useCallback } from 'react';
 import { useDocs } from '../contexts/DocsContext';
-import { uploadDraftsToGitHub, syncAllRepos } from '../lib/github-sync';
+import { uploadDraftsToGitHub, deleteDraftFromFirestore, syncAllRepos } from '../lib/github-sync';
 
 export default function UploadDraftsButton() {
   const { drafts } = useDocs();
@@ -13,6 +13,15 @@ export default function UploadDraftsButton() {
   const docDrafts = drafts.filter((d) => d.type === 'document');
   const folderDrafts = drafts.filter((d) => d.type === 'folder');
   const total = drafts.length;
+
+  const handleDelete = useCallback(async (draftId: string, name: string) => {
+    if (!confirm(`Xóa bản nháp "${name}" khỏi hàng chờ?`)) return;
+    try {
+      await deleteDraftFromFirestore(draftId);
+    } catch {
+      // silent
+    }
+  }, []);
 
   const handleUpload = useCallback(async () => {
     if (total === 0 || uploading) return;
@@ -59,6 +68,11 @@ export default function UploadDraftsButton() {
               <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
             </svg>
             <span className="upload-draft-name">{d.path.split('/').pop()}</span>
+            <button
+              className="upload-draft-delete"
+              title="Xóa bản nháp"
+              onClick={(e) => { e.stopPropagation(); handleDelete(d.id, d.path.split('/').pop() || d.path); }}
+            >×</button>
           </div>
         ))}
         {folderDrafts.slice(0, 3).map((d) => (
@@ -67,6 +81,11 @@ export default function UploadDraftsButton() {
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
             </svg>
             <span className="upload-draft-name">{d.path.split('/').pop()}</span>
+            <button
+              className="upload-draft-delete"
+              title="Xóa bản nháp"
+              onClick={(e) => { e.stopPropagation(); handleDelete(d.id, d.path.split('/').pop() || d.path); }}
+            >×</button>
           </div>
         ))}
         {total > 8 && (
