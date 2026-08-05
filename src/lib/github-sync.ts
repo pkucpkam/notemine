@@ -330,13 +330,15 @@ export async function listRepoBranches(repo: string): Promise<string[]> {
 
 export type UploadProgress = (msg: string) => void;
 
+// Xóa 1 draft khỏi Firestore (không commit lên GitHub)
+export async function deleteDraftFromFirestore(draftId: string): Promise<void> {
+  await deleteDoc(doc(db, 'drafts', draftId));
+}
+
 /**
- * Upload tất cả drafts lên GitHub.
- * Mỗi draft là 1 file riêng biệt.
- * Commit message: "notemine/add content"
- * Commit body: danh sách tên file
- *
- * Trả về danh sách { draftId, newSha } đã commit thành công.
+ * Upload tất cả drafts lên GitHub trong MỘT commit duy nhất.
+ * Sử dụng Git Data API: tạo blobs → tạo tree → tạo commit → update ref.
+ * Trả về danh sách { draftId, path, newSha } đã commit thành công.
  */
 export async function uploadDraftsToGitHub(
   drafts: DraftEntry[],
@@ -347,109 +349,167 @@ export async function uploadDraftsToGitHub(
 
   if (drafts.length === 0) throw new Error('NO_DRAFTS');
 
-  const results: Array<{ draftId: string; path: string; newSha: string }> = [];
-  const fileNames = drafts
-    .filter((d) => d.type === 'document')
-    .map((d) => d.path.split('/').pop() || d.path)
-    .join(', ');
+  const headers = {
+    Authorization: `token ${token}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/vnd.github.v3+json',
+  };
 
-  const commitMessage = 'notemine/add content';
-  const commitBody = fileNames || drafts.map((d) => d.path).join(', ');
-
+  // Gom các draft theo từng repo+branch
+  type RepoGroup = { owner: string; repoName: string; branch: string; drafts: DraftEntry[] };
+  const groups = new Map<string, RepoGroup>();
   for (const draft of drafts) {
-    onProgress?.(`Đang upload: ${draft.path}…`);
-
     const [owner, repoName] = draft.repo.split('/');
     const branch = draft.branch || 'main';
+    const key = `${owner}/${repoName}@${branch}`;
+    if (!groups.has(key)) groups.set(key, { owner, repoName, branch, drafts: [] });
+    groups.get(key)!.drafts.push(draft);
+  }
 
-    if (draft.type === 'folder') {
-      // Tạo .gitkeep cho folder
-      try {
-        const res = await fetch(
-          `https://api.github.com/repos/${owner}/${repoName}/contents/${draft.path}/.gitkeep`,
-          {
-            method: 'PUT',
-            headers: {
-              Authorization: `token ${token}`,
-              'Content-Type': 'application/json',
-              Accept: 'application/vnd.github.v3+json',
-            },
-            body: JSON.stringify({
-              message: `${commitMessage}\n\n${commitBody}`,
-              content: btoa(''),
-              branch,
-            }),
-          }
-        );
-        if (res.ok) {
-          const data = await res.json() as { content: { sha: string } };
-          results.push({ draftId: draft.id, path: draft.path, newSha: data.content.sha });
-          // Xóa folder draft khỏi Firestore
-          await deleteDoc(doc(db, 'drafts', draft.id));
-        }
-      } catch {
-        // bỏ qua lỗi folder, tiếp tục
-      }
-      continue;
+  const results: Array<{ draftId: string; path: string; newSha: string }> = [];
+
+  for (const { owner, repoName, branch, drafts: groupDrafts } of groups.values()) {
+    const repoKey = `${owner}/${repoName}`;
+    onProgress?.(`Chuẩn bị commit lên ${repoKey}…`);
+
+    // 1. Lấy SHA của HEAD commit hiện tại
+    const refRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/git/ref/heads/${branch}`,
+      { headers }
+    );
+    if (!refRes.ok) {
+      throw new Error(`Không thể lấy ref branch ${branch}: ${refRes.status} ${await refRes.text()}`);
     }
+    const refData = await refRes.json() as { object: { sha: string } };
+    const baseCommitSha = refData.object.sha;
 
-    // Document
-    const content = draft.content || `# ${draft.title}\n\n`;
-    const encodedContent = btoa(unescape(encodeURIComponent(content)));
+    // 2. Lấy tree SHA của commit đó
+    const commitRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/git/commits/${baseCommitSha}`,
+      { headers }
+    );
+    if (!commitRes.ok) {
+      throw new Error(`Không thể lấy commit ${baseCommitSha}: ${commitRes.status}`);
+    }
+    const commitData = await commitRes.json() as { tree: { sha: string } };
+    const baseTreeSha = commitData.tree.sha;
 
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repoName}/contents/${draft.path}`,
+    // 3. Tạo blobs song song cho tất cả file
+    onProgress?.(`Đang tạo ${groupDrafts.length} blobs…`);
+    const treeEntries: Array<{ path: string; mode: string; type: string; sha: string }> = [];
+    const draftResults: Array<{ draftId: string; path: string; blobSha: string; content: string }> = [];
+
+    await Promise.all(groupDrafts.map(async (draft) => {
+      const isFolder = draft.type === 'folder';
+      const filePath = isFolder ? `${draft.path}/.gitkeep` : draft.path;
+      const rawContent = isFolder ? '' : (draft.content || `# ${draft.title}\n\n`);
+
+      const blobRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repoName}/git/blobs`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            content: btoa(unescape(encodeURIComponent(rawContent))),
+            encoding: 'base64',
+          }),
+        }
+      );
+      if (!blobRes.ok) {
+        throw new Error(`Tạo blob cho ${filePath} thất bại: ${blobRes.status} ${await blobRes.text()}`);
+      }
+      const blob = await blobRes.json() as { sha: string };
+
+      treeEntries.push({ path: filePath, mode: '100644', type: 'blob', sha: blob.sha });
+      draftResults.push({ draftId: draft.id, path: draft.path, blobSha: blob.sha, content: rawContent });
+    }));
+
+    // 4. Tạo tree mới
+    onProgress?.(`Đang tạo tree…`);
+    const treeRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/git/trees`,
       {
-        method: 'PUT',
-        headers: {
-          Authorization: `token ${token}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/vnd.github.v3+json',
-        },
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ base_tree: baseTreeSha, tree: treeEntries }),
+      }
+    );
+    if (!treeRes.ok) {
+      throw new Error(`Tạo tree thất bại: ${treeRes.status} ${await treeRes.text()}`);
+    }
+    const treeData = await treeRes.json() as { sha: string };
+
+    // 5. Tạo commit mới
+    const fileNames = groupDrafts
+      .filter((d) => d.type === 'document')
+      .map((d) => d.path.split('/').pop() || d.path)
+      .join(', ');
+    const commitBody = fileNames || groupDrafts.map((d) => d.path).join(', ');
+    const commitMessage = `notemine/add content\n\n${commitBody}`;
+
+    onProgress?.(`Đang tạo commit…`);
+    const newCommitRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/git/commits`,
+      {
+        method: 'POST',
+        headers,
         body: JSON.stringify({
-          message: `${commitMessage}\n\n${commitBody}`,
-          content: encodedContent,
-          branch,
-          // sha không có vì file mới
+          message: commitMessage,
+          tree: treeData.sha,
+          parents: [baseCommitSha],
         }),
       }
     );
+    if (!newCommitRes.ok) {
+      throw new Error(`Tạo commit thất bại: ${newCommitRes.status} ${await newCommitRes.text()}`);
+    }
+    const newCommit = await newCommitRes.json() as { sha: string };
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Upload ${draft.path} thất bại: ${res.status} ${errText.slice(0, 100)}`);
+    // 6. Update branch ref
+    onProgress?.(`Đang cập nhật branch ${branch}…`);
+    const updateRefRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repoName}/git/refs/heads/${branch}`,
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ sha: newCommit.sha, force: false }),
+      }
+    );
+    if (!updateRefRes.ok) {
+      throw new Error(`Cập nhật ref thất bại: ${updateRefRes.status} ${await updateRefRes.text()}`);
     }
 
-    const data = await res.json() as { content: { sha: string } };
+    // 7. Cập nhật Firestore: chuyển draft → doc chính thức
+    for (const dr of draftResults) {
+      const { content: parsedContent, data: frontmatter } = parseFrontmatter(dr.content);
+      const draftEntry = groupDrafts.find((d) => d.id === dr.draftId)!;
+      const title = extractTitle(parsedContent, frontmatter)
+        || draftEntry.title
+        || dr.path.split('/').pop()?.replace('.md', '')
+        || '';
+      const headings = extractHeadings(parsedContent);
+      const docId = slugify(repoKey, dr.path);
 
-    // TỰ ĐỘNG CHUYỂN TỪ DRAFT THÀNH DOC TRONG FIRESTORE NGAY LẬP TỨC
-    // Điều này giúp file chuyển từ màu Xanh (Draft) sang màu thường mà không bao giờ biến mất khỏi UI
-    const { content: parsedContent, data: frontmatter } = parseFrontmatter(content);
-    const title = extractTitle(parsedContent, frontmatter) || draft.title || draft.path.split('/').pop()?.replace('.md', '') || '';
-    const headings = extractHeadings(parsedContent);
-    const docId = slugify(draft.repo, draft.path);
+      await setDoc(
+        doc(db, 'docs', docId),
+        {
+          repo: repoKey,
+          path: dr.path,
+          title,
+          content: parsedContent,
+          headings,
+          frontmatter,
+          sha: dr.blobSha,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
-    // 1. Tạo document chính thức trong Firestore `docs`
-    await setDoc(
-      doc(db, 'docs', docId),
-      {
-        repo: draft.repo,
-        path: draft.path,
-        title,
-        content: parsedContent,
-        headings,
-        frontmatter,
-        sha: data.content.sha,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+      await deleteDoc(doc(db, 'drafts', dr.draftId));
+      results.push({ draftId: dr.draftId, path: dr.path, newSha: dr.blobSha });
+    }
 
-    // 2. Xóa khỏi `drafts` collection
-    await deleteDoc(doc(db, 'drafts', draft.id));
-
-    results.push({ draftId: draft.id, path: draft.path, newSha: data.content.sha });
-    onProgress?.(`✓ Uploaded: ${draft.path}`);
+    onProgress?.(`✓ Đã commit ${groupDrafts.length} file lên ${repoKey}/${branch}`);
   }
 
   return results;
