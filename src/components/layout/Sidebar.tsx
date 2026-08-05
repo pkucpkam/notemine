@@ -9,7 +9,9 @@ import FileTree from '../FileTree';
 import SyncStatus from '../SyncStatus';
 import UploadDraftsButton from '../UploadDraftsButton';
 import NewItemModal, { type NewItemType } from '../NewItemModal';
+import DeleteDraftModal from '../DeleteDraftModal';
 import type { DocEntry, DraftEntry } from '../../lib/firestore';
+import { deleteDraft } from '../../lib/firestore';
 
 interface SidebarProps {
   onClose: () => void;
@@ -161,6 +163,13 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
     folder: string;
   }>({ open: false, type: 'document', folder: '' });
 
+  const [deleteDraftModal, setDeleteDraftModal] = useState<{
+    open: boolean;
+    draftId: string;
+    draftName: string;
+    draftPath: string;
+  }>({ open: false, draftId: '', draftName: '', draftPath: '' });
+
   const isFiltering = filterQuery.trim().length > 0;
 
   const filteredDocs = useMemo(() => {
@@ -200,6 +209,25 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
     await signOutUser();
     navigate('/login');
   }, [navigate]);
+
+  const handleDeleteDraft = useCallback((draftId: string) => {
+    // Tìm draft để lấy name + path hiển thị
+    const draft = drafts.find((d) => d.id === draftId);
+    setDeleteDraftModal({
+      open: true,
+      draftId,
+      draftName: draft?.title || draftId,
+      draftPath: draft?.path || draftId,
+    });
+  }, [drafts]);
+
+  const handleDeleteDraftConfirm = useCallback(async () => {
+    await deleteDraft(deleteDraftModal.draftId);
+  }, [deleteDraftModal.draftId]);
+
+  const closeDeleteDraftModal = useCallback(() => {
+    setDeleteDraftModal((prev) => ({ ...prev, open: false }));
+  }, []);
 
   const openNewItemModal = useCallback((type: NewItemType, folder = '') => {
     setNewItemModal({ open: true, type, folder });
@@ -329,6 +357,7 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
                 isFiltering={isFiltering}
                 onNewDocInFolder={(folderPath) => openNewItemModal('document', folderPath)}
                 onNewFolderInFolder={(folderPath) => openNewItemModal('folder', folderPath)}
+                onDeleteDraft={handleDeleteDraft}
               />
             </div>
           ))
@@ -350,6 +379,15 @@ export default function Sidebar({ onClose, isMobile }: SidebarProps) {
         defaultType={newItemModal.type}
         contextFolder={newItemModal.folder}
         onSuccess={() => {}}
+      />
+
+      {/* Delete Draft Modal */}
+      <DeleteDraftModal
+        isOpen={deleteDraftModal.open}
+        draftName={deleteDraftModal.draftName}
+        draftPath={deleteDraftModal.draftPath}
+        onClose={closeDeleteDraftModal}
+        onConfirm={handleDeleteDraftConfirm}
       />
     </div>
   );

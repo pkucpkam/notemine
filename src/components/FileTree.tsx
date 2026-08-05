@@ -12,6 +12,7 @@ interface FileTreeProps {
   isFiltering?: boolean;
   onNewDocInFolder?: (folderPath: string) => void;
   onNewFolderInFolder?: (folderPath: string) => void;
+  onDeleteDraft?: (draftId: string) => void;
 }
 
 export default function FileTree({
@@ -22,6 +23,7 @@ export default function FileTree({
   isFiltering = false,
   onNewDocInFolder,
   onNewFolderInFolder,
+  onDeleteDraft,
 }: FileTreeProps) {
   return (
     <div className="file-tree" style={{ '--depth': depth } as React.CSSProperties}>
@@ -35,6 +37,7 @@ export default function FileTree({
           isFiltering={isFiltering}
           onNewDocInFolder={onNewDocInFolder}
           onNewFolderInFolder={onNewFolderInFolder}
+          onDeleteDraft={onDeleteDraft}
         />
       ))}
     </div>
@@ -49,6 +52,7 @@ function FileTreeNode({
   isFiltering = false,
   onNewDocInFolder,
   onNewFolderInFolder,
+  onDeleteDraft,
 }: {
   node: TreeNode;
   activeDocId?: string;
@@ -57,6 +61,7 @@ function FileTreeNode({
   isFiltering?: boolean;
   onNewDocInFolder?: (folderPath: string) => void;
   onNewFolderInFolder?: (folderPath: string) => void;
+  onDeleteDraft?: (draftId: string) => void;
 }) {
   const [manualOpen, setManualOpen] = useState(depth < 1);
   const [showMenu, setShowMenu] = useState(false);
@@ -159,6 +164,7 @@ function FileTreeNode({
               isFiltering={isFiltering}
               onNewDocInFolder={onNewDocInFolder}
               onNewFolderInFolder={onNewFolderInFolder}
+              onDeleteDraft={onDeleteDraft}
             />
           )}
         </div>
@@ -187,25 +193,51 @@ function FileTreeNode({
     }
   }
 
+  function handleDeleteClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    const draftId = node.draft?.id;
+    if (!draftId) return;
+    onDeleteDraft?.(draftId);
+  }
+
   return (
-    <button
-      className={`tree-item tree-file ${isActive ? 'tree-item-active' : ''} ${isDraft ? 'tree-item-draft' : ''}`}
-      onClick={handleFileClick}
-      style={{ paddingLeft: `${12 + depth * 16}px` }}
-      title={isDraft ? `${node.path} — Nháp, chưa upload lên GitHub` : node.path}
-    >
-      <span className={`tree-icon ${isDraft ? 'tree-icon-file-draft' : 'tree-icon-file'}`} aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
-      </span>
-      <span className="tree-label">
-        {node.name}
-        {isDraft && (
-          <span className="tree-draft-dot" aria-label="Nháp chưa upload" title="Chưa upload lên GitHub" />
-        )}
-      </span>
-    </button>
+    <div className={`tree-file-row ${isDraft ? 'tree-file-row-draft' : ''}`}>
+      <button
+        className={`tree-item tree-file ${isActive ? 'tree-item-active' : ''} ${isDraft ? 'tree-item-draft' : ''}`}
+        onClick={handleFileClick}
+        style={{ paddingLeft: `${12 + depth * 16}px` }}
+        title={isDraft ? `${node.path} — Nháp, chưa upload lên GitHub` : node.path}
+      >
+        <span className={`tree-icon ${isDraft ? 'tree-icon-file-draft' : 'tree-icon-file'}`} aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+        </span>
+        <span className="tree-label">
+          {node.name}
+          {isDraft && (
+            <span className="tree-draft-dot" aria-label="Nháp chưa upload" title="Chưa upload lên GitHub" />
+          )}
+        </span>
+      </button>
+
+      {/* Nút xóa — chỉ hiện với draft */}
+      {isDraft && onDeleteDraft && (
+        <button
+          className="tree-file-delete-btn"
+          onClick={handleDeleteClick}
+          title="Xóa nháp"
+          aria-label="Xóa nháp này"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+            <path d="M10 11v6M14 11v6" />
+            <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }

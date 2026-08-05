@@ -240,3 +240,43 @@
   background: var(--color-canvas-soft);
   color: var(--color-ink);
 }
+
+/* ── File row wrapper (cho cả file thường lẫn draft) ── */
+.tree-file-row {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.tree-file-row .tree-file {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Nút xóa draft ── */
+.tree-file-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  color: var(--color-ink-faint);
+  border-radius: var(--radius-xs);
+  opacity: 0;
+  transition: opacity var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.tree-file-row:hover .tree-file-delete-btn,
+.tree-file-delete-btn:focus {
+  opacity: 1;
+}
+
+.tree-file-delete-btn:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}

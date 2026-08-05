@@ -131,6 +131,7 @@ export default function DocPage() {
       {/* Content / Editor */}
       {(isEditMode || isDraftDoc) ? (
         <DocEditor
+          key={doc.id}
           doc={doc}
           isDraft={isDraftDoc}
           onCommitSuccess={handleCommitSuccess}
